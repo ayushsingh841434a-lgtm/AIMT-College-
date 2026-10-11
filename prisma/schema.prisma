@@ -1,0 +1,307 @@
+// ============================================================
+// AIMT College Management System — Prisma schema
+// Ambalika Institute of Management and Technology, Lucknow
+// Database: PostgreSQL
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  MANAGEMENT
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum NoticeAudience {
+  ALL
+  STUDENT
+  MANAGEMENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RecordType {
+  ACADEMIC
+  ATTENDANCE
+  FEE
+  DISCIPLINARY
+  OTHER
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique // always stored lowercased
+  studentId    String?    @unique
+  passwordHash String
+  role         Role
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  profile           StudentProfile?
+  sessions          Session[]
+  noticesPublished  Notice[]          @relation("NoticePublisher")
+  noticesRead       NoticeRead[]
+  tasksAssigned     Task[]            @relation("TaskAssignee")
+  tasksCreated      Task[]            @relation("TaskCreator")
+  records           StudentRecord[]   @relation("RecordStudent")
+  recordsAuthored   StudentRecord[]   @relation("RecordAuthor")
+  reportsGenerated  Report[]
+  auditActions      AuditLog[]
+  resetTokens       PasswordResetToken[]
+  supportRequests   SupportRequest[]
+  attendance        AttendanceRecord[]  @relation("AttendanceStudent")
+  attendanceMarked  AttendanceRecord[]  @relation("AttendanceRecorder")
+  examResults       ExamResult[]        @relation("ExamStudent")
+  examsRecorded     ExamResult[]        @relation("ExamRecorder")
+
+  @@index([email])
+  @@index([role, status])
+  @@map("users")
+}
+
+model StudentProfile {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone         String?
+  dateOfBirth   DateTime?
+  gender        String?
+  address       String?
+  course        String?
+  branch        String?
+  year          Int?
+  semester      Int?
+  admissionYear Int?
+  guardianName  String?
+  guardianPhone String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("student_profiles")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique // sha256 hex of the opaque token
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Notice {
+  id          String          @id @default(cuid())
+  title       String
+  body        String          @db.Text
+  audience    NoticeAudience  @default(ALL)
+  publishedBy String
+  publisher   User            @relation("NoticePublisher", fields: [publishedBy], references: [id])
+  publishedAt DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  reads       NoticeRead[]
+
+  @@index([audience, publishedAt])
+  @@map("notices")
+}
+
+model NoticeRead {
+  id       String   @id @default(cuid())
+  noticeId String
+  notice   Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt   DateTime @default(now())
+
+  @@unique([noticeId, userId])
+  @@map("notice_reads")
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String     @db.Text
+  assignedTo  String
+  assignee    User       @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: Cascade)
+  createdBy   String
+  creator     User       @relation("TaskCreator", fields: [createdBy], references: [id])
+  dueDate     DateTime?
+  status      TaskStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([assignedTo, status])
+  @@map("tasks")
+}
+
+model StudentRecord {
+  id         String     @id @default(cuid())
+  studentId  String
+  student    User       @relation("RecordStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  type       RecordType
+  title      String
+  details    Json?
+  recordedBy String
+  author     User       @relation("RecordAuthor", fields: [recordedBy], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([studentId, type])
+  @@map("student_records")
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  title       String
+  type        String
+  parameters  Json?
+  data        Json
+  generatedBy String
+  generator   User     @relation(fields: [generatedBy], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([generatedBy])
+  @@map("reports")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  targetType String?
+  targetId  String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique // sha256 hex of the opaque token
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model SupportRequest {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String        @db.Text
+  status    SupportStatus @default(OPEN)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId, status])
+  @@map("support_requests")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  role         Role
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+  @@map("role_permissions")
+}
+
+model AttendanceRecord {
+  id         String           @id @default(cuid())
+  studentId  String
+  student    User             @relation("AttendanceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  subject    String           @default("General")
+  recordedBy String
+  recorder   User             @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([studentId, date, subject])
+  @@index([studentId, date])
+  @@map("attendance_records")
+}
+
+model ExamResult {
+  id            String   @id @default(cuid())
+  studentId     String
+  student       User     @relation("ExamStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  examName      String
+  subject       String
+  marksObtained Float
+  maxMarks      Float
+  grade         String?
+  recordedBy    String
+  recorder      User     @relation("ExamRecorder", fields: [recordedBy], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([studentId])
+  @@map("exam_results")
+}
