@@ -31,4 +31,4 @@ createServer(async (request, response) => {
   } catch {
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
   }
-}).listen(port, '0.0.0.0', () => console.log(`AIMT demo running on port ${port}`));
+}).listen(port, '0.0.0.0', () => console.log(`AIMT member portal running on port ${port}`));
