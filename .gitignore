@@ -1,23 +1,6 @@
-# Dependencies
 node_modules/
-
-# Next.js
-.next/
-out/
-
-# Environment (NEVER commit real secrets)
+dist/
 .env
-.env.local
-.env*.local
-
-# Prisma
-prisma/*.db
-
-# Test output
-coverage/
-
-# OS / editor
-.DS_Store
-*.log
-.idea/
-.vscode/
+.env.*
+!.env.example
+.vercel/
